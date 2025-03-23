@@ -1,0 +1,54 @@
+{
+  "development": {
+    "username": "app_user_secure",
+    "password": "app_user_secure_password",
+    "database": "religious_community_hub",
+    "host": "localhost",
+    "dialect": "postgres",
+    "logging": true,
+    "pool": {
+      "max": 10,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    },
+    "dialectOptions": {
+      "ssl": false
+    }
+  },
+  "test": {
+    "username": "app_user_secure",
+    "password": "app_user_secure_password",
+    "database": "religious_community_hub_test",
+    "host": "localhost",
+    "dialect": "postgres",
+    "logging": false,
+    "pool": {
+      "max": 5,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    },
+    "dialectOptions": {
+      "ssl": false
+    }
+  },
+  "production": {
+    "username": "app_user_secure",
+    "password": "app_user_secure_password",
+    "database": "religious_community_hub_prod",
+    "host": "localhost",
+    "dialect": "postgres",
+    "logging": false,
+    "pool": {
+      "max": 10,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    },
+    "dialectOptions": {
+      "ssl": true,
+      "rejectUnauthorized": false
+    }
+  }
+}
