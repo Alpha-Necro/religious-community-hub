@@ -14,13 +14,15 @@ const eventsRoutes = require('./routes/events');
 const csrfRoutes = require('./routes/csrf');
 const widgetRoutes = require('./routes/widgets');
 const { auth } = require('./middleware/auth');
-const { security, csrfProtection, corsOptions } = require('./middleware/security');
+const { security, csrfProtection, corsOptions, setupSecurity } = require('./middleware/security');
 const validateInput = require('./middleware/inputValidator');
+const morgan = require('morgan');
+const path = require('path');
 
 const app = express();
 
-// Apply security middleware
-security(app);
+// Set up security
+setupSecurity(app);
 
 // CORS configuration
 app.use(cors(corsOptions));
@@ -35,6 +37,7 @@ app.use(limiter);
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
 
 // Input validation middleware
 app.use(validateInput);
@@ -56,13 +59,7 @@ app.get('/', (req, res) => {
 });
 
 // Error handling
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
+app.use(errorHandler);
 
 // Sync database
 sequelize.sync()

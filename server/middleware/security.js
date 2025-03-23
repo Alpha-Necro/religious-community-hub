@@ -1,17 +1,9 @@
 const helmet = require('helmet');
-const csrf = require('csurf');
-const xss = require('xss-clean');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
+const csrf = require('csurf');
+const { rateLimiter } = require('./rateLimiter');
 
-// Rate limiting
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-});
-
-// CORS configuration
+// Configure CORS
 const corsOptions = {
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
@@ -19,33 +11,50 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 };
 
-// CSRF configuration
+// Configure CSRF protection
 const csrfProtection = csrf({
-  cookie: true,
-  ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  },
 });
 
-const security = (app) => {
-  // Security headers
-  app.use(helmet());
-  
-  // XSS protection
-  app.use(xss());
-  
-  // CORS
-  app.use(cors(corsOptions));
-  
-  // Rate limiting
-  app.use('/api', apiLimiter);
-  
-  // CSRF protection
-  app.use(csrfProtection);
-  
-  // Add CSRF token to response
-  app.use((req, res, next) => {
-    res.locals.csrfToken = req.csrfToken();
-    next();
-  });
-};
+module.exports = {
+  setupSecurity: (app) => {
+    // Set up security headers
+    app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'https:'],
+            connectSrc: ["'self'", process.env.API_URL || 'http://localhost:5000'],
+          },
+        },
+        crossOriginEmbedderPolicy: false,
+      })
+    );
 
-module.exports = { security, csrfProtection, corsOptions };
+    // Set up CORS
+    app.use(cors(corsOptions));
+
+    // Rate limiting
+    app.use(rateLimiter);
+
+    // CSRF protection
+    app.use(csrfProtection);
+
+    // Add security headers
+    app.use((req, res, next) => {
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('X-XSS-Protection', '1; mode=block');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+      res.setHeader('Permissions-Policy', 'interest-cohort=()');
+      next();
+    });
+  },
+};

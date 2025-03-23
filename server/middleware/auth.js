@@ -2,7 +2,13 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { rateLimiter } = require('./rateLimiter');
+const { validationResult } = require('express-validator');
+const { validatePassword } = require('../utils/passwordValidator');
+const { validate } = require('../utils/validators');
 require('dotenv').config();
+
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 const auth = async (req, res, next) => {
   try {
@@ -12,7 +18,7 @@ const auth = async (req, res, next) => {
       throw new Error('Authentication required');
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     req.role = decoded.role;
 
@@ -45,14 +51,26 @@ const adminAuth = async (req, res, next) => {
   }
 };
 
+const validateUserPassword = async (req, res, next) => {
+  try {
+    const errors = validatePassword(req.body.password);
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ error: 'Password validation failed' });
+  }
+};
+
 const generateTokens = async (user) => {
   try {
     // Generate access token
     const accessToken = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { 
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+        expiresIn: JWT_EXPIRES_IN,
         algorithm: 'HS256'
       }
     );
@@ -60,7 +78,7 @@ const generateTokens = async (user) => {
     // Generate refresh token
     const refreshToken = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET,
+      process.env.REFRESH_TOKEN_SECRET || JWT_SECRET,
       { 
         expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d',
         algorithm: 'HS256'
@@ -75,7 +93,7 @@ const generateTokens = async (user) => {
 
 const validateToken = async (token) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findByPk(decoded.userId);
     if (!user || user.deletedAt) {
       return null;
@@ -89,6 +107,7 @@ const validateToken = async (token) => {
 module.exports = { 
   auth, 
   adminAuth,
+  validateUserPassword,
   generateTokens,
   validateToken,
   rateLimiter
