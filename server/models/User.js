@@ -1,6 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const bcrypt = require('bcrypt');
+const { Op } = require('sequelize');
 
 const User = sequelize.define('User', {
   id: {
@@ -32,10 +33,10 @@ const User = sequelize.define('User', {
     }
   },
   role: {
-    type: DataTypes.ENUM('user', 'admin'),
+    type: DataTypes.ENUM('user', 'admin', 'superadmin'),
     defaultValue: 'user',
     validate: {
-      isIn: [['user', 'admin']]
+      isIn: [['user', 'admin', 'superadmin']]
     }
   },
   language: {
@@ -53,59 +54,198 @@ const User = sequelize.define('User', {
     type: DataTypes.DATE,
     allowNull: true
   },
-  verificationToken: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  verificationTokenExpires: {
+  passwordChangedAt: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  resetPasswordToken: {
-    type: DataTypes.STRING,
-    allowNull: true
+  failedLoginAttempts: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
-  resetPasswordExpires: {
+  lastFailedLogin: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  deletedAt: {
+  accountLockedUntil: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  createdAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
+  passwordHistory: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: []
   },
-  updatedAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
+  rowLevelSecurity: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
-}, {
-  paranoid: true, // Enables soft delete
-  hooks: {
-    beforeCreate: async (user) => {
-      if (user.password) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
-      }
-    },
-    beforeUpdate: async (user) => {
-      if (user.changed('password')) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
-      }
+  dataMasking: {
+    type: DataTypes.JSON,
+    defaultValue: {
+      email: true,
+      phone: true,
+      address: true
     }
   },
+  mfaEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  mfaSecret: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  deviceFingerprint: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  lastLoginLocation: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  lastPasswordReset: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  passwordResetToken: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  passwordResetExpires: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  sessionTokens: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: []
+  },
+  lastSessionCleanup: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  isLocked: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  lockReason: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  lockUntil: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  securityQuestions: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  accountRecovery: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  lastSecurityCheck: {
+    type: DataTypes.DATE,
+    allowNull: true
+  }
+}, {
+  timestamps: true,
+  paranoid: true,
   indexes: [
     { fields: ['email'] },
-    { fields: ['role'] }
+    { fields: ['role'] },
+    { fields: ['accountLockedUntil'] },
+    { fields: ['passwordChangedAt'] },
+    { fields: ['lastLogin'] },
+    { fields: ['isLocked'] },
+    { fields: ['mfaEnabled'] },
+    { fields: ['isVerified'] }
   ]
 });
 
-// Add password comparison method
-User.prototype.comparePassword = async function(password) {
+// Password validation
+User.prototype.validatePassword = async function(password) {
+  // Check password strength
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
+    throw new Error('Password must contain uppercase, lowercase, number, and special character');
+  }
+
+  if (password.length < 12) {
+    throw new Error('Password must be at least 12 characters long');
+  }
+
   return bcrypt.compare(password, this.password);
 };
+
+// Password change
+User.prototype.changePassword = async function(newPassword) {
+  // Check password strength
+  await this.validatePassword(newPassword);
+
+  // Check if password has been used before
+  if (this.passwordHistory?.includes(this.password)) {
+    throw new Error('Cannot reuse previous password');
+  }
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+  // Update password and history
+  await this.update({
+    password: hashedPassword,
+    passwordChangedAt: new Date(),
+    passwordHistory: [...(this.passwordHistory || []), this.password].slice(-5),
+    lastPasswordReset: new Date(),
+    passwordResetToken: null,
+    passwordResetExpires: null
+  });
+};
+
+// Login attempt tracking
+User.prototype.trackLoginAttempt = async function(success, req) {
+  if (success) {
+    await this.update({
+      failedLoginAttempts: 0,
+      lastFailedLogin: null,
+      accountLockedUntil: null,
+      lastLogin: new Date(),
+      deviceFingerprint: req.deviceFingerprint,
+      lastLoginLocation: {
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      }
+    });
+  } else {
+    const failedAttempts = this.failedLoginAttempts + 1;
+    const lockoutDuration = Math.min(30, Math.floor(failedAttempts / 3) * 5); // 5, 10, 15, 20, 25, 30 minutes
+    
+    await this.update({
+      failedLoginAttempts: failedAttempts,
+      lastFailedLogin: new Date(),
+      accountLockedUntil: failedAttempts >= 3 ? new Date(Date.now() + lockoutDuration * 60000) : null
+    });
+  }
+};
+
+// Check account lockout
+User.prototype.isLocked = async function() {
+  return this.accountLockedUntil && this.accountLockedUntil > new Date();
+};
+
+// Row-level security
+User.beforeFind((options) => {
+  if (options.where) {
+    options.where = {
+      ...options.where,
+      rowLevelSecurity: true,
+      isLocked: false
+    };
+  }
+});
 
 module.exports = User;
