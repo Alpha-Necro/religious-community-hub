@@ -1,122 +1,66 @@
-import { requestHandler } from '../middleware/requestHandler';
-import { performanceMonitor } from '../services/performanceMonitor';
-import { cachingService } from '../services/cachingService';
-import { databaseService } from '../services/databaseService';
+import { Request, Response, NextFunction } from 'express';
+import { requestHandler } from '../../src/middleware/requestHandler';
+import { performanceMonitor } from '../../src/services/performanceMonitor';
+import { monitoringService } from '../../src/services/monitoringService';
+import { databaseHealthCheck } from '../../src/services/databaseHealthCheck';
 
-describe('Request Handler', () => {
-  const mockRequest = {
-    method: 'GET',
-    url: '/api/test',
-    headers: {},
-    body: {},
-    params: {},
-    query: {}
-  };
+jest.mock('../../src/services/performanceMonitor');
+jest.mock('../../src/services/monitoringService');
+jest.mock('../../src/services/databaseHealthCheck');
 
-  const mockResponse = {
-    status: jest.fn().mockReturnThis(),
-    json: jest.fn(),
-    send: jest.fn(),
-    end: jest.fn()
-  };
-
-  const mockNext = jest.fn();
+describe('Request Handler Middleware', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.MockedFunction<NextFunction>;
 
   beforeEach(() => {
+    req = {
+      path: '/test',
+      method: 'GET'
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+
+    next = jest.fn();
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
-    performanceMonitor.resetMetrics();
-    cachingService.clear('test');
-    databaseService.resetMetrics();
   });
 
-  it('should handle request compression', async () => {
-    const compressedRequest = {
-      ...mockRequest,
-      headers: { 'content-encoding': 'gzip' }
-    };
+  it('should handle cached response', async () => {
+    const cacheKey = `request:${req.method}:${req.path}`;
+    const mockResponse = { data: 'cached' };
     
-    await requestHandler.handleRequest(compressedRequest, mockResponse, mockNext);
-    expect(mockNext).toHaveBeenCalled();
-    expect(performanceMonitor.metrics.compression).toBeGreaterThan(0);
+    (monitoringService.getCache as jest.Mock).mockResolvedValue(mockResponse);
+
+    await requestHandler(req as Request, res as Response, next);
+
+    expect(monitoringService.getCache).toHaveBeenCalledWith(cacheKey);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(mockResponse);
+    expect(next).not.toHaveBeenCalled();
   });
 
-  it('should handle request caching', async () => {
-    const cachedRequest = {
-      ...mockRequest,
-      headers: { 'cache-control': 'public' }
-    };
-    
-    await requestHandler.handleRequest(cachedRequest, mockResponse, mockNext);
-    expect(mockNext).toHaveBeenCalled();
-    expect(cachingService.getMetrics().hits).toBeGreaterThan(0);
+  it('should handle database validation', async () => {
+    (monitoringService.getCache as jest.Mock).mockResolvedValue(null);
+    (databaseHealthCheck.validateConnection as jest.Mock).mockResolvedValue(undefined);
+
+    await requestHandler(req as Request, res as Response, next);
+
+    expect(databaseHealthCheck.validateConnection).toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
   });
 
-  it('should handle rate limiting', async () => {
-    const rateLimitedRequest = {
-      ...mockRequest,
-      ip: '127.0.0.1'
-    };
-    
-    // First request should pass
-    await requestHandler.handleRequest(rateLimitedRequest, mockResponse, mockNext);
-    expect(mockNext).toHaveBeenCalled();
-    
-    // Mock rate limit exceeded
-    const originalCheck = requestHandler.rateLimiter.check;
-    requestHandler.rateLimiter.check = jest.fn().mockRejectedValue(new Error('Rate limit exceeded'));
-    
-    // Second request should be rate limited
-    await requestHandler.handleRequest(rateLimitedRequest, mockResponse, mockNext);
-    expect(mockResponse.status).toHaveBeenCalledWith(429);
-    
-    // Restore original method
-    requestHandler.rateLimiter.check = originalCheck;
-  });
+  it('should handle errors', async () => {
+    const mockError = new Error('Test error');
+    (monitoringService.getCache as jest.Mock).mockRejectedValue(mockError);
 
-  it('should handle request validation', async () => {
-    const invalidRequest = {
-      ...mockRequest,
-      body: { invalid: 'data' }
-    };
-    
-    const schema = {
-      body: {
-        required: true,
-        type: 'object',
-        properties: {
-          valid: { type: 'string' }
-        }
-      }
-    };
-    
-    await requestHandler.validateRequest(invalidRequest, schema);
-    expect(mockResponse.status).toHaveBeenCalledWith(400);
-  });
+    await requestHandler(req as Request, res as Response, next);
 
-  it('should track request metrics', async () => {
-    await requestHandler.handleRequest(mockRequest, mockResponse, mockNext);
-    
-    const metrics = requestHandler.getMetrics();
-    expect(metrics).toHaveProperty('totalRequests');
-    expect(metrics).toHaveProperty('responseTimes');
-    expect(metrics).toHaveProperty('statusCodes');
-  });
-
-  it('should handle request errors', async () => {
-    const errorRequest = {
-      ...mockRequest,
-      url: '/api/error'
-    };
-    
-    const originalNext = mockNext;
-    mockNext.mockImplementation(() => {
-      throw new Error('Request error');
-    });
-    
-    await requestHandler.handleRequest(errorRequest, mockResponse, mockNext);
-    expect(mockResponse.status).toHaveBeenCalledWith(500);
-    
-    // Restore original next function
-    mockNext.mockImplementation(originalNext);
+    expect(next).toHaveBeenCalledWith(mockError);
   });
 });

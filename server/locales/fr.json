@@ -1,0 +1,18 @@
+{
+  "errors": {
+    "validationFailed": "Validation échouée",
+    "authenticationRequired": "Authentification requise",
+    "unauthorizedAccess": "Accès non autorisé",
+    "resourceNotFound": "Ressource non trouvée: {{resource}}",
+    "badRequest": "Mauvaise requête",
+    "internalServerError": "Erreur serveur interne",
+    "validation": {
+      "required": "Ce champ est requis",
+      "email": "Veuillez saisir une adresse e-mail valide",
+      "password": "Le mot de passe doit contenir au moins 8 caractères",
+      "min": "La valeur minimale est {{min}}",
+      "max": "La valeur maximale est {{max}}",
+      "pattern": "Format invalide"
+    }
+  }
+}

@@ -1,54 +1,58 @@
 {
-  "development": {
-    "username": "app_user_secure",
-    "password": "app_user_secure_password",
-    "database": "religious_community_hub",
+  "database": {
+    "user": "root",
+    "password": "",
     "host": "localhost",
-    "dialect": "postgres",
-    "logging": true,
-    "pool": {
-      "max": 10,
-      "min": 0,
-      "acquire": 30000,
-      "idle": 10000
+    "port": 3306,
+    "name": "religious_community_hub",
+    "dialect": "mysql"
+  },
+  "security": {
+    "jwt": {
+      "secret": "your-secret-key-here",
+      "expiresIn": "7d"
     },
-    "dialectOptions": {
-      "ssl": false
+    "password": {
+      "minLength": 8,
+      "maxLength": 100,
+      "requireLowercase": true,
+      "requireUppercase": true,
+      "requireNumbers": true,
+      "requireSymbols": true
+    },
+    "csrf": {
+      "cookie": {
+        "httpOnly": true,
+        "secure": false,
+        "sameSite": "strict"
+      }
+    },
+    "rateLimit": {
+      "windowMs": 900000,
+      "max": 100,
+      "standardHeaders": true,
+      "legacyHeaders": false
     }
   },
-  "test": {
-    "username": "app_user_secure",
-    "password": "app_user_secure_password",
-    "database": "religious_community_hub_test",
-    "host": "localhost",
-    "dialect": "postgres",
-    "logging": false,
-    "pool": {
-      "max": 5,
-      "min": 0,
-      "acquire": 30000,
-      "idle": 10000
-    },
-    "dialectOptions": {
-      "ssl": false
-    }
+  "api": {
+    "version": "1.0.0",
+    "baseUrl": "http://localhost:5000",
+    "prefix": "/api",
+    "responseTimeThreshold": 2000
   },
-  "production": {
-    "username": "app_user_secure",
-    "password": "app_user_secure_password",
-    "database": "religious_community_hub_prod",
-    "host": "localhost",
-    "dialect": "postgres",
-    "logging": false,
-    "pool": {
-      "max": 10,
-      "min": 0,
-      "acquire": 30000,
-      "idle": 10000
-    },
-    "dialectOptions": {
-      "ssl": true,
-      "rejectUnauthorized": false
-    }
+  "server": {
+    "port": 5000,
+    "environment": "development",
+    "logLevel": "debug"
+  },
+  "cors": {
+    "origin": "http://localhost:3000",
+    "credentials": true,
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allowedHeaders": ["Content-Type", "Authorization", "X-CSRF-Token"]
+  },
+  "language": {
+    "default": "en",
+    "supported": ["en", "ar"]
   }
 }

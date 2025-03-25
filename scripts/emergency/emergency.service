@@ -1,0 +1,16 @@
+[Unit]
+Description=Emergency Recovery Script for Religious Community Hub
+After=network.target
+
+[Service]
+Type=simple
+User=node
+WorkingDirectory=/Users/nabilbelkas/CascadeProjects/windsurf-project/religious-community-hub
+ExecStart=/Users/nabilbelkas/CascadeProjects/windsurf-project/religious-community-hub/scripts/emergency/emergency.js
+Restart=always
+RestartSec=5
+Environment=SENTRY_DSN=your-sentry-dsn-here
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

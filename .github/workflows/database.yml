@@ -1,0 +1,65 @@
+name: Database Management
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'migrations/**/*'
+      - 'models/**/*'
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+      
+      - name: Install dependencies
+        run: yarn install
+      
+      - name: Run database migrations
+        env:
+          NODE_ENV: production
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: yarn db:migrate
+      
+      - name: Run database seeds
+        if: github.ref == 'refs/heads/main'
+        env:
+          NODE_ENV: production
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: yarn db:seed
+      
+      - name: Run database tests
+        run: yarn test:database
+      
+      - name: Backup database
+        if: github.ref == 'refs/heads/main'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          # Create database backup
+          yarn db:backup
+          
+          # Upload backup to S3
+          aws s3 cp backup.sql s3://$BUCKET_NAME/backup/$(date +"%Y-%m-%d_%H-%M-%S").sql
+          
+          # Clean up old backups
+          aws s3 rm s3://$BUCKET_NAME/backup/ --recursive --exclude "*" --include "*" --mtime -7d

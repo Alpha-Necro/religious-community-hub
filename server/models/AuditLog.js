@@ -75,6 +75,26 @@ const AuditLog = sequelize.define('AuditLog', {
     type: DataTypes.INTEGER,
     comment: 'Operation duration in milliseconds',
   },
+  requestMethod: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'HTTP request method (e.g., GET, POST, PUT, DELETE)',
+  },
+  requestUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'HTTP request URL',
+  },
+  responseCode: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'HTTP response code',
+  },
+  responseMessage: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'HTTP response message',
+  },
 }, {
   timestamps: true,
   indexes: [
@@ -84,6 +104,9 @@ const AuditLog = sequelize.define('AuditLog', {
     { fields: ['createdAt'] },
     { fields: ['severity'] },
     { fields: ['status'] },
+    { fields: ['requestMethod'] },
+    { fields: ['requestUrl'] },
+    { fields: ['responseCode'] },
   ]
 });
 

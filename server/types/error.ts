@@ -1,19 +1,40 @@
-import { HttpStatus } from 'http-status-codes';
+import HttpStatus from 'http-status-codes';
 
+/**
+ * Interface for error details that can be included in error responses.
+ * Details should be serializable and contain relevant error information.
+ */
 export interface ErrorDetails {
-  [key: string]: any;
+  [key: string]: string | number | boolean | null | undefined;
+  retryCount?: number | null;
+  maxRetries?: number | null;
 }
 
+/**
+ * Interface representing a standardized error in the application.
+ * All errors in the system should implement this interface.
+ */
 export interface AppError {
+  /** A human-readable message describing the error */
   message: string;
+  /** HTTP status code corresponding to the error type */
   status: number;
+  /** Unique error code for identification */
   code: string;
-  details?: any;
+  /** Additional error details (optional) */
+  details?: ErrorDetails;
+  /** Error category to classify the type of error */
   category: ErrorCategory;
+  /** Context information about the error occurrence (optional) */
   context?: ErrorContext;
+  /** Timestamp of when the error occurred */
   timestamp: string;
 }
 
+/**
+ * Enum representing different categories of errors in the application.
+ * Each category helps in classifying and handling errors appropriately.
+ */
 export enum ErrorCategory {
   SYSTEM = 'SYSTEM',
   VALIDATION = 'VALIDATION',
@@ -46,89 +67,119 @@ export enum ErrorCategory {
   COMPLIANCE = 'COMPLIANCE',
   AUDIT = 'AUDIT',
   MONITORING = 'MONITORING',
-  LOGGING = 'LOGGING',
-  CONFIG_DRIFT = 'CONFIG_DRIFT',
-  VERSION_COMPATIBILITY = 'VERSION_COMPATIBILITY',
-  DEPENDENCY_CONFLICT = 'DEPENDENCY_CONFLICT',
-  ENCRYPTION_KEY = 'ENCRYPTION_KEY',
-  BACKUP_CORRUPTION = 'BACKUP_CORRUPTION',
-  SESSION_TIMEOUT = 'SESSION_TIMEOUT',
-  CACHE_CONSISTENCY = 'CACHE_CONSISTENCY',
-  QUEUE_OVERFLOW = 'QUEUE_OVERFLOW',
-  API_RATE_LIMIT = 'API_RATE_LIMIT',
-  LOAD_BALANCER = 'LOAD_BALANCER',
-  CDN_CACHE_INVALIDATION = 'CDN_CACHE_INVALIDATION',
-  REPLICATION_LAG = 'REPLICATION_LAG',
-  DISTRIBUTED_PARTITION = 'DISTRIBUTED_PARTITION',
-  CLUSTERING_CONFIG = 'CLUSTERING_CONFIG',
-  CONTAINER_RESOURCE_LIMIT = 'CONTAINER_RESOURCE_LIMIT',
-  CLOUD_API = 'CLOUD_API',
-  INFRASTRUCTURE_CAPACITY = 'INFRASTRUCTURE_CAPACITY',
-  SECURITY_POLICY_ENFORCEMENT = 'SECURITY_POLICY_ENFORCEMENT',
-  COMPLIANCE_VALIDATION = 'COMPLIANCE_VALIDATION',
-  AUDIT_LOG_PROCESSING = 'AUDIT_LOG_PROCESSING',
-  MONITORING_DATA_COLLECTION = 'MONITORING_DATA_COLLECTION',
-  LOGGING_CONFIG = 'LOGGING_CONFIG',
-  CONFIG_DRIFT_VALIDATION = 'CONFIG_DRIFT_VALIDATION',
-  VERSION_COMPATIBILITY_VALIDATION = 'VERSION_COMPATIBILITY_VALIDATION',
-  DEPENDENCY_CONFLICT_VALIDATION = 'DEPENDENCY_CONFLICT_VALIDATION',
-  ENCRYPTION_KEY_VALIDATION = 'ENCRYPTION_KEY_VALIDATION',
-  BACKUP_CORRUPTION_VALIDATION = 'BACKUP_CORRUPTION_VALIDATION',
-  SESSION_TIMEOUT_VALIDATION = 'SESSION_TIMEOUT_VALIDATION',
-  CACHE_CONSISTENCY_VALIDATION = 'CACHE_CONSISTENCY_VALIDATION',
-  QUEUE_OVERFLOW_VALIDATION = 'QUEUE_OVERFLOW_VALIDATION',
-  API_RATE_LIMIT_VALIDATION = 'API_RATE_LIMIT_VALIDATION',
-  LOAD_BALANCER_HEALTH_CHECK = 'LOAD_BALANCER_HEALTH_CHECK',
-  CDN_CACHE_INVALIDATION_VALIDATION = 'CDN_CACHE_INVALIDATION_VALIDATION',
-  REPLICATION_LAG_VALIDATION = 'REPLICATION_LAG_VALIDATION',
-  DISTRIBUTED_PARTITION_VALIDATION = 'DISTRIBUTED_PARTITION_VALIDATION',
-  CLUSTERING_CONFIG_VALIDATION = 'CLUSTERING_CONFIG_VALIDATION',
-  CONTAINER_RESOURCE_LIMIT_VALIDATION = 'CONTAINER_RESOURCE_LIMIT_VALIDATION',
-  CLOUD_API_VALIDATION = 'CLOUD_API_VALIDATION',
-  INFRASTRUCTURE_CAPACITY_VALIDATION = 'INFRASTRUCTURE_CAPACITY_VALIDATION',
-  SECURITY_POLICY_ENFORCEMENT_VALIDATION = 'SECURITY_POLICY_ENFORCEMENT_VALIDATION',
-  COMPLIANCE_VALIDATION_VALIDATION = 'COMPLIANCE_VALIDATION_VALIDATION',
-  AUDIT_LOG_PROCESSING_VALIDATION = 'AUDIT_LOG_PROCESSING_VALIDATION',
-  MONITORING_DATA_COLLECTION_VALIDATION = 'MONITORING_DATA_COLLECTION_VALIDATION',
-  LOGGING_CONFIG_VALIDATION = 'LOGGING_CONFIG_VALIDATION',
-  CONFIG_DRIFT_VALIDATION_VALIDATION = 'CONFIG_DRIFT_VALIDATION_VALIDATION',
-  VERSION_COMPATIBILITY_VALIDATION_VALIDATION = 'VERSION_COMPATIBILITY_VALIDATION_VALIDATION',
-  DEPENDENCY_CONFLICT_VALIDATION_VALIDATION = 'DEPENDENCY_CONFLICT_VALIDATION_VALIDATION',
-  ENCRYPTION_KEY_VALIDATION_VALIDATION = 'ENCRYPTION_KEY_VALIDATION_VALIDATION',
-  BACKUP_CORRUPTION_VALIDATION_VALIDATION = 'BACKUP_CORRUPTION_VALIDATION_VALIDATION',
-  SESSION_TIMEOUT_VALIDATION_VALIDATION = 'SESSION_TIMEOUT_VALIDATION_VALIDATION',
-  CACHE_CONSISTENCY_VALIDATION_VALIDATION = 'CACHE_CONSISTENCY_VALIDATION_VALIDATION',
-  QUEUE_OVERFLOW_VALIDATION_VALIDATION = 'QUEUE_OVERFLOW_VALIDATION_VALIDATION',
-  API_RATE_LIMIT_VALIDATION_VALIDATION = 'API_RATE_LIMIT_VALIDATION_VALIDATION',
-  LOAD_BALANCER_HEALTH_CHECK_VALIDATION = 'LOAD_BALANCER_HEALTH_CHECK_VALIDATION',
+  LOGGING = 'LOGGING'
 }
 
+/**
+ * Interface for contextual information that can be attached to errors.
+ * This information helps in debugging and tracing error occurrences.
+ */
 export interface ErrorContext {
+  /** Unique request identifier */
   requestId?: string;
+  /** User identifier associated with the error */
   userId?: string;
+  /** Session identifier */
   sessionId?: string;
+  /** IP address of the client */
   ipAddress?: string;
+  /** User agent string */
   userAgent?: string;
+  /** Operation identifier */
   operationId?: string;
+  /** Correlation identifier for distributed tracing */
   correlationId?: string;
+  /** Transaction identifier */
   transactionId?: string;
+  /** Service identifier */
   serviceId?: string;
+  /** Component identifier */
   componentId?: string;
+  /** Environment name */
   environment?: string;
+  /** Region identifier */
   region?: string;
+  /** Deployment identifier */
   deploymentId?: string;
+  /** Application version */
   version?: string;
+  /** Timestamp of the error occurrence */
   timestamp?: string;
-  [key: string]: any;
 }
 
-export class AppError implements AppError {
-  constructor(props: AppError) {
-    Object.assign(this, props);
+/**
+ * Utility function to validate if a status code is appropriate for a given error category.
+ */
+function isValidStatusCodeForCategory(status: number, category: ErrorCategory): boolean {
+  switch (category) {
+    case ErrorCategory.VALIDATION:
+      return status === HttpStatus.BAD_REQUEST;
+    case ErrorCategory.AUTHENTICATION:
+      return status === HttpStatus.UNAUTHORIZED;
+    case ErrorCategory.AUTHORIZATION:
+      return status === HttpStatus.FORBIDDEN;
+    case ErrorCategory.NOT_FOUND:
+      return status === HttpStatus.NOT_FOUND;
+    case ErrorCategory.CONFLICT:
+      return status === HttpStatus.CONFLICT;
+    case ErrorCategory.RATE_LIMIT:
+      return status === HttpStatus.TOO_MANY_REQUESTS;
+    case ErrorCategory.SERVICE_UNAVAILABLE:
+      return status === HttpStatus.SERVICE_UNAVAILABLE;
+    case ErrorCategory.MAINTENANCE:
+      return status === HttpStatus.SERVICE_UNAVAILABLE;
+    case ErrorCategory.TIMEOUT:
+      return status === HttpStatus.GATEWAY_TIMEOUT;
+    default:
+      return status >= 500 && status < 600; // Internal server errors
   }
 }
 
-export class ValidationError extends AppError {
+/**
+ * Base class for all application errors.
+ * Implements the AppError interface and provides common functionality.
+ */
+export class BaseError extends Error implements AppError {
+  message!: string;
+  status!: number;
+  code!: string;
+  details?: ErrorDetails;
+  category!: ErrorCategory;
+  context?: ErrorContext;
+  timestamp!: string;
+
+  constructor(props: AppError) {
+    super(props.message);
+    Object.assign(this, props);
+    this.name = this.constructor.name;
+    this.timestamp = props.timestamp;
+
+    if (!isValidStatusCodeForCategory(this.status, this.category)) {
+      throw new Error(`Invalid status code ${this.status} for error category ${this.category}`);
+    }
+  }
+
+  /**
+   * Returns a JSON representation of the error suitable for API responses.
+   */
+  toJSON(): AppError {
+    return {
+      message: this.message,
+      status: this.status,
+      code: this.code,
+      details: this.details,
+      category: this.category,
+      context: this.context,
+      timestamp: this.timestamp
+    };
+  }
+}
+
+/**
+ * Error class for validation failures.
+ * Used when input data fails validation checks.
+ */
+export class ValidationError extends BaseError {
   constructor(message: string, details?: ErrorDetails, context?: ErrorContext) {
     super({
       message,
@@ -137,12 +188,16 @@ export class ValidationError extends AppError {
       category: ErrorCategory.VALIDATION,
       details,
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 }
 
-export class AuthenticationError extends AppError {
+/**
+ * Error class for authentication failures.
+ * Used when authentication credentials are invalid.
+ */
+export class AuthenticationError extends BaseError {
   constructor(message: string = 'Authentication failed', details?: ErrorDetails, context?: ErrorContext) {
     super({
       message,
@@ -151,12 +206,16 @@ export class AuthenticationError extends AppError {
       category: ErrorCategory.AUTHENTICATION,
       details,
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 }
 
-export class AuthorizationError extends AppError {
+/**
+ * Error class for authorization failures.
+ * Used when a user lacks permission to perform an action.
+ */
+export class AuthorizationError extends BaseError {
   constructor(message: string = 'Authorization failed', details?: ErrorDetails, context?: ErrorContext) {
     super({
       message,
@@ -165,12 +224,16 @@ export class AuthorizationError extends AppError {
       category: ErrorCategory.AUTHORIZATION,
       details,
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 }
 
-export class NotFoundError extends AppError {
+/**
+ * Error class for resource not found scenarios.
+ * Used when a requested resource does not exist.
+ */
+export class NotFoundError extends BaseError {
   constructor(message: string = 'Resource not found', details?: ErrorDetails, context?: ErrorContext) {
     super({
       message,
@@ -179,12 +242,16 @@ export class NotFoundError extends AppError {
       category: ErrorCategory.NOT_FOUND,
       details,
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 }
 
-export class ServiceUnavailableError extends AppError {
+/**
+ * Error class for service availability issues.
+ * Used when a service is temporarily unavailable.
+ */
+export class ServiceUnavailableError extends BaseError {
   constructor(message: string = 'Service temporarily unavailable', details?: ErrorDetails, context?: ErrorContext) {
     super({
       message,
@@ -193,12 +260,16 @@ export class ServiceUnavailableError extends AppError {
       category: ErrorCategory.SERVICE_UNAVAILABLE,
       details,
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 }
 
-export class TransientError extends AppError {
+/**
+ * Error class for transient errors with retry logic.
+ * Used for errors that might resolve on their own after a retry.
+ */
+export class TransientError extends BaseError {
   constructor(
     message: string = 'Temporary error occurred',
     retryCount: number = 0,
@@ -217,12 +288,26 @@ export class TransientError extends AppError {
         maxRetries,
       },
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
+  }
+
+  /**
+   * Returns true if the error should be retried.
+   */
+  shouldRetry(): boolean {
+    if (!this.details) return false;
+    const retryCount = this.details.retryCount ?? 0;
+    const maxRetries = this.details.maxRetries ?? 3;
+    return retryCount < maxRetries;
   }
 }
 
-export class RateLimitError extends AppError {
+/**
+ * Error class for rate limiting scenarios.
+ * Used when a client exceeds their request rate limit.
+ */
+export class RateLimitError extends BaseError {
   constructor(message: string = 'Rate limit exceeded', details?: ErrorDetails, context?: ErrorContext) {
     super({
       message,
@@ -231,7 +316,7 @@ export class RateLimitError extends AppError {
       category: ErrorCategory.RATE_LIMIT,
       details,
       context,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 }

@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@sentry/node": "^7.69.0",
+    "opossum": "^6.0.0",
+    "pino": "^8.16.0",
+    "pino-http": "^7.1.0",
+    "prom-client": "^14.2.0",
+    "prometheus-client": "^14.2.0",
+    "prometheus-ts-exporter": "^1.0.0"
+  }
+}

@@ -1,0 +1,66 @@
+replicaCount: 2
+
+image:
+  repository: religious-community-hub
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: religious-community-hub.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+  - hosts:
+    - religious-community-hub.example.com
+    secretName: religious-community-hub-tls
+
+deployment:
+  minReadySeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 2Gi
+  requests:
+    cpu: "1"
+    memory: 1Gi
+
+postgresql:
+  enabled: true
+  auth:
+    password: ""
+    username: "postgres"
+    database: "religious_community_hub"
+
+redis:
+  enabled: true
+  password: ""
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 15
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

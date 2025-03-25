@@ -95,6 +95,11 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  mfaRecoveryCodes: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: []
+  },
   deviceFingerprint: {
     type: DataTypes.STRING,
     allowNull: true
@@ -204,6 +209,41 @@ User.prototype.changePassword = async function(newPassword) {
     passwordResetToken: null,
     passwordResetExpires: null
   });
+};
+
+// MFA setup
+User.prototype.setupMFA = async function(secret) {
+  await this.update({
+    mfaEnabled: true,
+    mfaSecret: secret,
+    mfaRecoveryCodes: this.generateRecoveryCodes()
+  });
+};
+
+// MFA verification
+User.prototype.verifyMFA = async function(code) {
+  if (!this.mfaEnabled) {
+    throw new Error('MFA is not enabled');
+  }
+
+  const isValid = this.mfaRecoveryCodes.includes(code);
+  if (!isValid) {
+    throw new Error('Invalid MFA code');
+  }
+
+  // Remove used recovery code
+  await this.update({
+    mfaRecoveryCodes: this.mfaRecoveryCodes.filter((c) => c !== code)
+  });
+};
+
+// Generate recovery codes
+User.prototype.generateRecoveryCodes = function() {
+  const codes = [];
+  for (let i = 0; i < 5; i++) {
+    codes.push(Math.random().toString(36).substr(2, 8));
+  }
+  return codes;
 };
 
 // Login attempt tracking

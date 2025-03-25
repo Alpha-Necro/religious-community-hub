@@ -18,12 +18,8 @@ beforeAll(async () => {
 
   // Create test database connection
   await createConnection({
-    type: 'postgres',
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    type: 'sqlite',
+    database: ':memory:',
     entities: ['dist/**/*.entity.js'],
     synchronize: true,
     dropSchema: true,
@@ -41,7 +37,7 @@ beforeEach(() => {
   // Clear database before each test
   const connection = getConnection();
   const entities = connection.entityMetadatas;
-  
+
   for (const entity of entities) {
     const repository = connection.getRepository(entity.name);
     await repository.clear();
@@ -69,10 +65,10 @@ global.console.warn = jest.fn();
 global.process.env = {
   ...process.env,
   NODE_ENV: 'test',
-  DATABASE_URL: 'postgres://localhost:5432/test_db',
+  DATABASE_URL: ':memory:',
   CACHE_SIZE: '1000',
   CACHE_TTL: '3600000',
-  PERFORMANCE_MONITOR_INTERVAL: '60000'
+  PERFORMANCE_MONITOR_INTERVAL: '60000',
 };
 
 // Mock database connection
@@ -86,7 +82,7 @@ jest.mock('sequelize', () => {
       close() {
         return Promise.resolve();
       }
-    }
+    },
   };
 });
 
@@ -115,12 +111,12 @@ jest.mock('fs', () => ({
     readFile: jest.fn(),
     writeFile: jest.fn(),
     mkdir: jest.fn(),
-    unlink: jest.fn()
-  }
+    unlink: jest.fn(),
+  },
 }));
 
 // Mock crypto operations
 jest.mock('crypto', () => ({
   createHash: jest.fn(),
-  randomBytes: jest.fn()
+  randomBytes: jest.fn(),
 }));

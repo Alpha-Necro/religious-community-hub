@@ -13,39 +13,42 @@ export class User extends Model {
   public updatedAt!: Date;
 }
 
-User.init({
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
+User.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    email: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    password: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    role: {
+      type: DataTypes.ENUM('USER', 'ADMIN', 'SUPER_ADMIN'),
+      defaultValue: 'USER',
+    },
+    preferences: {
+      type: DataTypes.JSONB,
+      defaultValue: {},
+    },
+    lastLogin: {
+      type: DataTypes.DATE,
+    },
   },
-  email: {
-    type: DataTypes.STRING,
-    unique: true,
-    allowNull: false,
+  {
+    sequelize,
+    modelName: 'User',
+    tableName: 'users',
+    timestamps: true,
   },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  role: {
-    type: DataTypes.ENUM('USER', 'ADMIN', 'SUPER_ADMIN'),
-    defaultValue: 'USER',
-  },
-  preferences: {
-    type: DataTypes.JSONB,
-    defaultValue: {},
-  },
-  lastLogin: {
-    type: DataTypes.DATE,
-  },
-}, {
-  sequelize,
-  modelName: 'User',
-  tableName: 'users',
-  timestamps: true,
-});
+);

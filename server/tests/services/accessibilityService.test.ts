@@ -39,13 +39,13 @@ describe('AccessibilityService', () => {
       const result = await accessibilityService.setAccessibilityPreference(
         testUserId,
         testType,
-        testPreference
+        testPreference,
       );
       expect(result).toBe(true);
 
       const preference = await accessibilityService.getAccessibilityPreference(
         testUserId,
-        testType
+        testType,
       );
       expect(preference).toBeDefined();
       expect(preference.type).toBe(testType);
@@ -54,11 +54,7 @@ describe('AccessibilityService', () => {
 
     it('should throw error with invalid user ID', async () => {
       await expect(
-        accessibilityService.setAccessibilityPreference(
-          null as any,
-          testType,
-          testPreference
-        )
+        accessibilityService.setAccessibilityPreference(null as any, testType, testPreference),
       ).rejects.toThrow();
     });
 
@@ -67,8 +63,8 @@ describe('AccessibilityService', () => {
         accessibilityService.setAccessibilityPreference(
           testUserId,
           'INVALID_TYPE' as any,
-          testPreference
-        )
+          testPreference,
+        ),
       ).rejects.toThrow();
     });
 
@@ -77,23 +73,19 @@ describe('AccessibilityService', () => {
         accessibilityService.setAccessibilityPreference(
           testUserId,
           testType,
-          'INVALID_PREFERENCE' as any
-        )
+          'INVALID_PREFERENCE' as any,
+        ),
       ).rejects.toThrow();
     });
   });
 
   describe('getAccessibilityPreference', () => {
     it('should get preference successfully', async () => {
-      await accessibilityService.setAccessibilityPreference(
-        testUserId,
-        testType,
-        testPreference
-      );
+      await accessibilityService.setAccessibilityPreference(testUserId, testType, testPreference);
 
       const preference = await accessibilityService.getAccessibilityPreference(
         testUserId,
-        testType
+        testType,
       );
       expect(preference).toBeDefined();
       expect(preference.type).toBe(testType);
@@ -103,7 +95,7 @@ describe('AccessibilityService', () => {
     it('should return null for non-existent preference', async () => {
       const preference = await accessibilityService.getAccessibilityPreference(
         testUserId,
-        testType
+        testType,
       );
       expect(preference).toBeNull();
     });

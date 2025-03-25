@@ -4,14 +4,8 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.ts', '**/?(*.)+(spec|test).ts'],
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   setupFiles: ['./jest.setup.ts'],
-  coveragePathIgnorePatterns: ['/node_modules/'],
   coverageDirectory: 'coverage',
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.d.ts',
-    '!src/**/*.test.ts',
-    '!src/**/*.spec.ts'
-  ],
+  collectCoverageFrom: ['src/**/*.ts'],
   coverageThreshold: {
     global: {
       branches: 80,
@@ -28,16 +22,6 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
-  reporters: [
-    'default',
-    [
-      'jest-junit',
-      {
-        outputDirectory: 'test-results',
-        outputName: 'junit.xml'
-      }
-    ]
-  ],
   testTimeout: 10000,
   transform: {
     '^.+\\.ts$': 'ts-jest'

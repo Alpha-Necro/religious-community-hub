@@ -5,6 +5,10 @@ const User = require('../models/User');
 const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
+const monitoringService = require('./monitoringService'); // Assuming monitoringService is defined elsewhere
+const shutdownManager = require('./shutdownManager'); // Assuming shutdownManager is defined elsewhere
+const websocketServer = require('./websocketServer'); // Assuming websocketServer is defined elsewhere
+const { errorConditions, checkErrorCondition, getHighestPriorityCondition } = require('./errorConditions');
 
 const errorMonitoringService = {
   monitoringTypes: {
@@ -26,6 +30,8 @@ const errorMonitoringService = {
     ERROR: 'ERROR'
   },
 
+  errorCounts: {},
+
   initialize: async () => {
     try {
       // Initialize monitoring configuration
@@ -34,7 +40,9 @@ const errorMonitoringService = {
           errorRate: process.env.ERROR_RATE_THRESHOLD || 0.01,
           errorVolume: process.env.ERROR_VOLUME_THRESHOLD || 100,
           errorWindow: process.env.ERROR_WINDOW || 60000, // 1 minute
-          anomalyThreshold: process.env.ANOMALY_THRESHOLD || 3
+          anomalyThreshold: process.env.ANOMALY_THRESHOLD || 3,
+          criticalErrorCount: process.env.CRITICAL_ERROR_COUNT || 5,
+          shutdownThreshold: process.env.SHUTDOWN_THRESHOLD || 0.05 // 5% error rate for shutdown
         },
         monitoringIntervals: {
           realTime: this.monitoringIntervals.REAL_TIME,
@@ -103,10 +111,15 @@ const errorMonitoringService = {
     }
   },
 
-  monitorRealTimeErrors: async () => {
+  async monitorRealTimeErrors() {
     try {
       // Get current error statistics
       const stats = await errorLoggingService.getErrorStatistics();
+
+      // Check if we need to trigger a shutdown
+      if (stats.errorRate >= this.config.shutdownThreshold) {
+        await this.triggerShutdown(`High error rate (${stats.errorRate * 100}% detected)`);
+      }
 
       // Check error rate threshold
       if (stats.errorRate > this.config.thresholds.errorRate) {
@@ -150,6 +163,110 @@ const errorMonitoringService = {
     } catch (error) {
       this.status.realTime = this.monitoringStatus.ERROR;
       throw error;
+    }
+  },
+
+  async triggerShutdown(reason) {
+    try {
+      // Log the shutdown trigger
+      await this.createAlert({
+        type: 'SHUTDOWN_TRIGGERED',
+        reason,
+        timestamp: new Date()
+      });
+
+      // Notify monitoring service
+      await monitoringService.trackShutdown(reason);
+
+      // Trigger maintenance mode before shutdown
+      await this.triggerMaintenanceMode(reason);
+
+      // Wait for maintenance mode to be active
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Trigger graceful shutdown
+      await shutdownManager.gracefulShutdown({
+        reason,
+        notifyUsers: false, // Users are already notified via maintenance page
+        timeout: 30000 // 30 seconds timeout
+      });
+
+    } catch (error) {
+      await this.handleError(error);
+    }
+  },
+
+  async triggerMaintenanceMode(reason) {
+    try {
+      // Determine the appropriate maintenance type based on the reason
+      let maintenanceType = 'DEFAULT';
+      
+      if (reason.includes('database')) {
+        maintenanceType = 'DATABASE_MAINTENANCE';
+      } else if (reason.includes('security')) {
+        maintenanceType = 'SECURITY_UPDATE';
+      } else if (reason.includes('upgrade')) {
+        maintenanceType = 'UPGRADE';
+      } else if (reason.includes('error')) {
+        maintenanceType = 'CRITICAL_ERROR';
+      }
+
+      // Format the reason with the maintenance type
+      const formattedReason = `${maintenanceType}: ${reason}`;
+
+      // Send maintenance mode signal to all connected clients via WebSocket
+      await websocketServer.broadcastMaintenanceMode('active', formattedReason);
+      
+      // Update monitoring service
+      await monitoringService.trackMaintenanceMode(formattedReason);
+      
+      // Log maintenance mode activation
+      await this.createAlert({
+        type: 'MAINTENANCE_MODE_ACTIVATED',
+        reason: formattedReason,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      await this.handleError(error);
+    }
+  },
+
+  async broadcastMaintenanceMode(status, message) {
+    try {
+      // Use the WebSocket server to broadcast the maintenance mode status
+      await websocketServer.broadcastMaintenanceMode(status, message);
+      
+      // Log the broadcast
+      await this.createAlert({
+        type: 'MAINTENANCE_BROADCAST',
+        status,
+        message,
+        clientCount: websocketServer.getClientCount(),
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      await this.handleError(error);
+    }
+  },
+
+  async deactivateMaintenanceMode() {
+    try {
+      // Send maintenance mode deactivation signal to all connected clients
+      await websocketServer.broadcastMaintenanceMode('inactive', 'The website is now back online. Thank you for your patience.');
+      
+      // Update monitoring service
+      await monitoringService.trackMaintenanceDeactivated();
+      
+      // Log maintenance mode deactivation
+      await this.createAlert({
+        type: 'MAINTENANCE_MODE_DEACTIVATED',
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      await this.handleError(error);
     }
   },
 
@@ -239,6 +356,67 @@ const errorMonitoringService = {
     } catch (error) {
       this.status.predictive = this.monitoringStatus.ERROR;
       throw error;
+    }
+  },
+
+  async monitorError(error) {
+    try {
+      // Track the error
+      await this.trackError(error);
+      
+      // Get the highest priority error condition
+      const errorCondition = getHighestPriorityCondition(error);
+      
+      if (errorCondition) {
+        // Increment error count for this condition
+        this.errorCounts[errorCondition.maintenanceType] = 
+          (this.errorCounts[errorCondition.maintenanceType] || 0) + 1;
+        
+        // Check if we've reached the threshold for this condition
+        if (this.errorCounts[errorCondition.maintenanceType] >= errorCondition.threshold) {
+          // Trigger maintenance mode with the appropriate type
+          await this.triggerMaintenanceMode(`error: ${error.message}`);
+          
+          // Reset error count for this condition
+          this.errorCounts[errorCondition.maintenanceType] = 0;
+        }
+      }
+    } catch (monitoringError) {
+      await this.handleError(monitoringError);
+    }
+  },
+
+  async trackError(error) {
+    try {
+      // Log the error
+      await this.logger.error(error);
+      
+      // Track in monitoring service
+      await monitoringService.trackError(error);
+      
+      // Update error metrics
+      await this.updateErrorMetrics(error);
+    } catch (trackingError) {
+      await this.handleError(trackingError);
+    }
+  },
+
+  async updateErrorMetrics(error) {
+    try {
+      // Get the error condition
+      const errorCondition = getHighestPriorityCondition(error);
+      
+      if (errorCondition) {
+        // Update metrics for this error type
+        await monitoringService.updateMetrics({
+          errorType: errorCondition.maintenanceType,
+          count: 1,
+          priority: errorCondition.priority,
+          timestamp: new Date(),
+        });
+      }
+    } catch (metricsError) {
+      await this.handleError(metricsError);
     }
   },
 
@@ -559,6 +737,10 @@ const errorMonitoringService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  async handleError(error) {
+    // Handle error
   }
 };
 
